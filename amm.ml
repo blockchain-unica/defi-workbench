@@ -273,7 +273,8 @@ let rec price t sl o = match t with
 
 let rec networth_bal f sl o = match f with
   [] -> 0.
-| (t,v)::f' -> ((float_of_int v) *. price t sl o) +. networth_bal f' sl o
+| (t,v)::f' when v=0 -> networth_bal f' sl o
+| (t,v)::f' -> ((float_of_int v) *. price t sl o) +. networth_bal f' sl o      
 ;;
 
 let networth a sl o = match (matchW a sl) with
