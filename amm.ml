@@ -136,8 +136,8 @@ let stepXfer(sl,a,v,t,b) = match (matchWW a b sl) with
 let stepDep(sl,a,v0,t0,v1,t1) = match (matchW a sl) with
   NoMatchW -> failwith "Dep: no wallet"
 | MatchW(wa,sl') ->
-    if balance wa t0 < v0 then failwith "Xfer: insufficient balance"
-    else if balance wa t1 < v1 then failwith "Xfer: insufficient balance"
+    if balance wa t0 < v0 then failwith "Dep: insufficient balance"
+    else if balance wa t1 < v1 then failwith "Dep: insufficient balance"
     else (match (matchA (t0,t1) sl') with
       NoMatchA ->
 	(match (matchA (t1,t0) sl') with
@@ -246,7 +246,7 @@ let rec step txl sl invF = match txl with
 ;;
 
 let rec trace txl sl invF = match txl with
-  [] -> []
+  [] -> [sl]
 | tx::txl' -> let sl' = step1 tx sl invF in sl::(trace txl' sl' invF)
 ;;
 
