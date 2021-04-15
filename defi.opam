@@ -1,0 +1,17 @@
+name: "defi"
+opam-version: "2.0"
+maintainer: "bart@unica.it"
+authors: [
+  "Massimo Bartoletti <bart@unica.it>"
+]
+homepage: "https://github.com/blockchain-unica/defi"
+dev-repo: "git@github.com:blockchain-unica/defi.git"
+bug-reports: "bart@unica.it"
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]
+depends: [
+  "ocaml" {>= "4.02.3"}
+  "dune" { >= "2.2.0"}
+]
+synopsis: "An Ocaml implementation of DeFi archetypes"

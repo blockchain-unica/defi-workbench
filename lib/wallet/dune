@@ -1,0 +1,4 @@
+(library
+ (name wallet)
+ (libraries token address)
+)

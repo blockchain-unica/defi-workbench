@@ -1,0 +1,17 @@
+(test
+  (name test1)
+  (modules test1)
+  (libraries token)
+)
+
+(test
+  (name test_token)
+  (modules test_token)
+  (libraries token)
+)
+
+(test
+  (name test_wallet)
+  (modules test_wallet)
+  (libraries token address wallet)
+)
