@@ -6,6 +6,8 @@ module type WalletType = sig
   type t
 
   type balType = Unbound | Val of int
+
+  val make : Address.t -> (Token.t * int) list -> t
       
   val empty : Address.t -> t
 
@@ -14,9 +16,11 @@ module type WalletType = sig
   val update : Token.t -> int -> t -> t
 
   val get_address : t -> Address.t
+
+  val get_balance : t -> (Token.t * int) list
       
   val to_string : t -> string
-      
+
 end
   
 module Wallet : WalletType = struct
@@ -25,6 +29,8 @@ module Wallet : WalletType = struct
 
   type balType = Unbound | Val of int
 
+  let make a bfun = (a,bfun)
+      
   let empty a = (a,[])
     
   let rec apply f x = match f with
@@ -42,6 +48,8 @@ module Wallet : WalletType = struct
 
   let get_address w = fst w
 
+  let get_balance w = snd w
+      
   let rec string_of_bal f = match f with
     [] -> ""
   | [(t,v)] -> (string_of_int v) ^ ":" ^ (Token.to_string t)
