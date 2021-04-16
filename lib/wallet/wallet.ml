@@ -1,13 +1,17 @@
 open Token
 open Address
 
+ 
 module type WalletType = sig
-
+  
+  (* type of the wallet *)
   type t
-
+  (* type of the users' balance *)
+  type bt
+	
   type balType = Unbound | Val of int
 
-  val make : Address.t -> (Token.t * int) list -> t
+  val make : Address.t -> bt -> t
       
   val empty : Address.t -> t
 
@@ -17,15 +21,21 @@ module type WalletType = sig
 
   val get_address : t -> Address.t
 
-  val get_balance : t -> (Token.t * int) list
+  val get_balance : t -> bt
+
+  val set_balance : bt -> t -> t
+
+  val balance_of_list : (Token.t * int) list -> bt
       
   val to_string : t -> string
 
 end
-  
+
+
 module Wallet : WalletType = struct
 
-  type t = Address.t * (Token.t * int) list
+  type bt = (Token.t * int) list  
+  type t = Address.t * bt
 
   type balType = Unbound | Val of int
 
@@ -49,6 +59,10 @@ module Wallet : WalletType = struct
   let get_address w = fst w
 
   let get_balance w = snd w
+
+  let balance_of_list l = l
+      
+  let set_balance bal (a,_) = (a,bal)
       
   let rec string_of_bal f = match f with
     [] -> ""
