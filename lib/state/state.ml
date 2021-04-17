@@ -44,6 +44,8 @@ module type StateType =
 
     val accrue_int : t -> t
 
+    val liq : Address.t -> Address.t -> int -> Token.t -> Tokent.t -> t -> t
+
     val to_string : t -> string
 
     val id_print : t -> t
@@ -172,7 +174,6 @@ module State : StateType =
 
     let bor a v tau s =
       let wa = get_wallet a s in
-      (* fails if a's balance of tau is < v *)
       let wa' =	(wa |> Wallet.update tau v) in
       let w' = WMap.add a (Wallet.get_balance wa') (fst s) in
       let lp = get_lp tau s in
@@ -197,6 +198,31 @@ module State : StateType =
           in (fst p, d'))
         (snd s)
       in (fst s, lpM')
+
+
+	  (**************************************************)
+	  (*                        Liq                     *)
+	  (**************************************************)
+
+    (* Address.t -> Address.t -> int -> Token.t -> Tokent.t -> t -> t *)
+
+    let liq a b v tau tau' s = 
+      if a=b then raise (SameAddress);
+      let wa = get_wallet a s in
+      (* fails if a's balance of tau is < v *)
+      if Wallet.balance tau wa < v
+      then raise (InsufficientBalance (Address.to_string a));
+      let v' = v in (* TODO *)
+      let wb = get_wallet b s in
+      if Wallet.balance tau' wb < v'
+      then raise (InsufficientBalance (Address.to_string b));
+      let wa' = (wa |> update tau (-v) |> update tau' v')  in
+      let wb' = (wb |> update tau v) in
+      let wM' =
+	(fst s
+            |> WMap.add a (Wallet.get_balance wa')
+            |> WMap.add b (Wallet.get_balance wb'))
+      in (wM',snd s)
 
 
     let to_string (w,lp) =
