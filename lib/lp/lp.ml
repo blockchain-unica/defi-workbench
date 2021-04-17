@@ -18,6 +18,8 @@ module type LpType = sig
 
   val set_debt : dt -> t -> t
 
+  val list_of_debt : dt -> (Address.t * int) list
+      
   val debt_of_list : (Address.t * int) list -> dt
       
   val to_string : t -> string
@@ -40,6 +42,8 @@ module Lp : LpType = struct
   let set_debt d (t,n,_) = (t,n,d)
 
   let debt_of_list l = l
+
+  let list_of_debt l = l
 
   let rec string_of_debt d = match d with
     [] -> ""

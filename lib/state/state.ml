@@ -15,14 +15,22 @@ module type StateType =
 	
     val add_wallet : Address.t -> (Token.t * int) list -> t -> t
 
+    (* Supply of a token in a state *)
+    val supply : Token.t -> t -> int
+
+    (* Exchange rate ER of a non-minted token in a state *)	
+    val er : Token.t -> t -> float
+	
     val xfer : Address.t -> Address.t -> int -> Token.t -> t -> t
 
     val dep : Address.t -> int -> Token.t -> t -> t
 
     val to_string : t -> string
-  end
 
- 
+    val id_print : t -> t
+
+  end
+      
 module State : StateType =
   struct
  
@@ -45,7 +53,22 @@ module State : StateType =
 	
     let get_lp tau s =
       let (n,d) = (LPMap.find tau (snd s)) in Lp.make tau n d
-	
+
+    let supply tau (wM,lpM) =
+      let nw = WMap.fold
+	  (fun a bal n -> n + Wallet.balance tau (Wallet.make a bal)) wM 0 in
+      try 
+	let (r,_) = LPMap.find tau lpM in nw + r
+      with Not_found -> nw
+	  
+    let er tau s =
+      (* TODO: check that tau is non-minted *)
+      try 
+	let (r,d) = LPMap.find tau (snd s) in
+	let dsum = List.fold_right (fun x n -> n + snd x) (Lp.list_of_debt d) 0 in
+	float_of_int (r + dsum) /. float_of_int (supply (Token.mintLP tau) s)
+      with Not_found -> 1.
+	  
     let xfer a b v tau (w,lp) =
       if a=b then raise (SameAddress);
       let wa = get_wallet a (w,lp) in
@@ -82,9 +105,15 @@ module State : StateType =
       with Not_found ->	(w', LPMap.add tau (v,Lp.debt_of_list []) lp)
 
     let to_string (w,lp) =
-      let ws = WMap.fold (fun a bal s -> s ^ (if s="" then "" else " | ") ^ (Wallet.to_string (Wallet.make a bal))) w "" in
-      let lps = LPMap.fold (fun t p s -> s ^ (if s="" then "" else " | ") ^ (Lp.to_string (Lp.make t (fst p) (snd p)))) lp "" in
+      let ws = WMap.fold
+	  (fun a bal s -> s ^ (if s="" then "" else " | ") ^ (Wallet.to_string (Wallet.make a bal)))
+	  w "" in
+      let lps = LPMap.fold
+	  (fun t p s -> s ^ (if s="" then "" else " | ") ^ (Lp.to_string (Lp.make t (fst p) (snd p))))
+	  lp "" in
       ws ^ (if lps = "" then "" else " | " ^ lps)
+
+    let id_print s = print_endline (to_string s); s
 	
   end
 
@@ -94,23 +123,28 @@ let a = Address.addr "A";;
 let b = Address.addr "B";;
 let t0 = Token.init "t0";;
 let t1 = Token.init "t1";;
-
-let print_state = fun s -> (print_endline (State.to_string s); s);;
     
 let s = State.(
   empty
-  |> print_state    
+  |> id_print    
   |> add_wallet a [(t0,100);(t1,50)]
-  |> print_state
+  |> id_print
   |> add_wallet b [(t0,200)]
-  |> print_state
+  |> id_print
   |> xfer a b 10 t0
-  |> print_state
+  |> id_print
   |> xfer a b 10 t1
-  |> print_state
+  |> id_print
   |> dep a 50 t0      
-  |> print_state      
+  |> id_print      
   |> dep b 10 t0
-  |> print_state      
+  |> id_print      
 )
 ;;
+
+State.supply t0 s;;
+State.supply t1 s;;
+State.supply (Token.mintLP t0) s;;
+State.supply (Token.mintLP t1) s;;
+State.er t0 s;;
+State.er t1 s;;
