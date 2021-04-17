@@ -1,26 +1,8 @@
 open Token
 open Address
 open Wallet
-
-module LP = struct
-
-  type t = Token.t * int * (Address.t * int) list
-	
-  let make tau n debtfun = (tau,n,debtfun)
-      
-  let empty tau = (tau,0,[])
-
-  let rec string_of_debt d = match d with
-    [] -> ""
-  | [(a,v)] -> (string_of_int v) ^ "/" ^ (Address.to_string a)
-  | x::d' -> (string_of_debt [x]) ^ "," ^ (string_of_debt d')
-    
-  let to_string (tau,n,d) =
-    "(" ^ (string_of_int n) ^ ":" ^
-    (Token.to_string tau) ^ ",{" ^ (string_of_debt d) ^ "})"
-end
-
-   
+open LP
+     
 module type StateType =
   sig
     type tw

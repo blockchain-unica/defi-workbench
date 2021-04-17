@@ -1,7 +1,7 @@
 (test
-  (name test1)
-  (modules test1)
-  (libraries token)
+  (name test)
+  (modules test)
+  (libraries address token wallet lp state)
 )
 
 (test
@@ -14,4 +14,10 @@
   (name test_wallet)
   (modules test_wallet)
   (libraries token address wallet)
+)
+
+(test
+  (name test_lp)
+  (modules test_lp)
+  (libraries address token lp)
 )
