@@ -42,6 +42,8 @@ module type StateType =
 
     val bor : Address.t -> int -> Token.t -> t -> t
 
+    val accrue_int : t -> t
+
     val to_string : t -> string
 
     val id_print : t -> t
@@ -145,7 +147,7 @@ module State : StateType =
 	(**************************************************)
 	(*                        Dep                     *)
 	(**************************************************)
-	
+
     let dep a v tau (w,lp) =
       let wa = get_wallet a (w,lp) in
       (* fails if a's balance of tau is < v *)
@@ -181,6 +183,20 @@ module State : StateType =
       match coll a s' with
 	Val c when c < coll_min -> raise (UnderCollateralization (Address.to_string a));
       | _ -> s'
+
+	  (**************************************************)
+	  (*                        Int                     *)
+	  (**************************************************)
+
+    let accrue_int s =
+      (* intr is the interest function (Token.t -> t -> float) *)
+      let intr _ _ = 0.1 in
+      let lpM' = LPMap.mapi
+        (fun tau p ->
+          let d' = Lp.accrue_int (1. +. (intr tau s)) (snd p)
+          in (fst p, d'))
+        (snd s)
+      in (fst s, lpM')
 
 
     let to_string (w,lp) =

@@ -23,6 +23,16 @@ let s = State.(
   |> id_print
   |> bor a 15 t0
   |> id_print
+  |> accrue_int
+  |> id_print
+  |> dep a 40 t1
+  |> id_print
+  |> dep b 100 t0
+  |> id_print
+  |> bor b 40 t1
+  |> id_print
+  |> accrue_int
+  |> id_print
 )
 ;;
 

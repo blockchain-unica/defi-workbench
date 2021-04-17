@@ -25,6 +25,8 @@ module type LpType = sig
 
   val debt_of_list : (Address.t * int) list -> dt
 
+  val accrue_int : float -> dt -> dt
+
   val to_string : t -> string
 
 end
@@ -58,6 +60,9 @@ module Lp : LpType = struct
   let debt_of_list l = l
 
   let list_of_debt l = l
+
+  let accrue_int k d =
+    List.map (fun (a,n) -> (a,int_of_float ((float_of_int n) *. k))) d
 
   let rec string_of_debt d = match d with
     [] -> ""
