@@ -163,6 +163,8 @@ module State : StateType =
     let tok s =
       set_of_list (WMap.fold (fun _ bal acc -> (dom (Wallet.list_of_balance bal)) @ acc) s.wM [])
 
+    let tokFree s = List.filter (fun x -> not (Token.isMintedLP x)) (tok s)
+
 
     (**************************************************)
     (*                        Xfer                    *)
@@ -333,8 +335,9 @@ module State : StateType =
       let lps = LPMap.fold
 	  (fun t p s -> s ^ (if s="" then "" else " | ") ^ (Lp.to_string (Lp.make t (fst p) (snd p))))
 	  s.lpM "" in
-      ws ^ (if lps = "" then "" else " | " ^ lps)
-    (* TODO : add price *)
+      let ps = List.fold_right
+        (fun x acc -> (Token.to_string x) ^ "->" ^ (string_of_float (s.pF x)) ^ "," ^ acc) (tokFree s) "" in
+      ws ^ (if lps = "" then "" else " | " ^ lps) ^ " | " ^ ps
 
     let id_print s = print_endline (to_string s); s
 
