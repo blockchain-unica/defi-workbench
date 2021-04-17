@@ -18,6 +18,9 @@ module type StateType =
 
     val add_wallet : Address.t -> (Token.t * int) list -> t -> t
 
+    (* Set of tokens in a state *)
+    val tok : t -> Token.t list
+
     (* Supply of a token in a state *)
     val supply : Token.t -> t -> int
 
@@ -72,7 +75,7 @@ module State : StateType =
     type collType = Infty | Val of float
 
     let coll_min = 1.5
-    let r_liq = 1.2
+    let r_liq = 1.1
 
     exception SameAddress
     exception MintedLP of string
@@ -116,12 +119,20 @@ module State : StateType =
       (fun x n -> n +. (float_of_int (snd x) *. get_price (fst x) s))
       (List.filter (fun x -> not (Token.isMintedLP (fst x))) bl)
       0.
-
+      
+    let rec filter_map f l = match l with
+        [] -> []
+      | x::l' -> (match f x with 
+        None -> filter_map f l'
+        | Some y -> y::(filter_map f l'))
+         
     let val_collateralized a s =
       let bl = Wallet.list_of_balance (WMap.find a s.wM)
       in List.fold_right
       (fun x n -> n +. (float_of_int (snd x) *. (er (fst x) s) *. get_price (fst x) s))
-      (List.filter (fun x -> Token.isMintedLP (fst x)) bl)
+      (filter_map (fun (tau,v) -> match Token.uLP(tau) with 
+        None -> None 
+      | Some tau' -> Some (tau',v)) bl)
       0.
 
     let val_debt a s =
@@ -137,6 +148,20 @@ module State : StateType =
       if val_debt a s > 0.
       then Val ((val_collateralized a s) /. (val_debt a s))
       else Infty
+
+    let rec set_of_list l = match l with
+        [] -> []
+      | x::l' -> let s = set_of_list l' in 
+                 if List.mem x s then s else x::s
+
+    let dom l =
+      let rec dom_list l = (match l with
+          [] -> []
+        | (x,_)::l' -> x::(dom_list l'))
+      in set_of_list (dom_list l)
+
+    let tok s =
+      set_of_list (WMap.fold (fun _ bal acc -> (dom (Wallet.list_of_balance bal)) @ acc) s.wM [])
 
 
     (**************************************************)
@@ -209,7 +234,7 @@ module State : StateType =
 
     let accrue_int s =
       (* intr is the interest function (Token.t -> t -> float) *)
-      let intr _ _ = 0.1 in
+      let intr _ _ = 0.14 in
       let lpM' = LPMap.mapi
         (fun tau p ->
           let d' = Lp.accrue_int (1. +. (intr tau s)) (snd p)
@@ -259,7 +284,7 @@ module State : StateType =
     (*                        Liq                     *)
     (**************************************************)
 
-    let liq a b v tau tau' s = 
+    let liq a b v tau tau' s =
       if a=b then raise (SameAddress);
       (match coll b s with
 	Val c when c < coll_min -> ()
@@ -269,7 +294,7 @@ module State : StateType =
       (* fails if a's balance of tau is < v *)
       if Wallet.balance tau wa < v
       then raise (InsufficientBalance (Address.to_string a));
-      let v' = int_of_float (((float_of_int v) *. r_liq *. (get_price tau s)) /. ((er tau' s) *. (get_price tau' s))) in 
+      let v' = int_of_float (((float_of_int v) *. r_liq *. (get_price tau s)) /. ((er tau' s) *. (get_price tau' s))) in
       let wb = get_wallet b s in
       if Wallet.balance (Token.mintLP tau') wb < v'
       then raise (InsufficientBalance (Address.to_string b));
@@ -286,7 +311,11 @@ module State : StateType =
       let s' = { s with wM = wM'; lpM = lpM' } in
       (match coll b s' with
 	Val c when c <= coll_min -> s'
-      | _ -> raise (OverCollateralization (Address.to_string b)))
+      | Val c when c > coll_min -> 
+         raise (OverCollateralization 
+                  (Address.to_string b ^ " : " ^ (string_of_float c)))
+      | _ -> raise (OverCollateralization 
+                      (Address.to_string b ^ " : Infty")))
 
 
     (**************************************************)
@@ -312,6 +341,8 @@ module State : StateType =
   end
 
 ;;
+
+(*
 
 let a = Address.addr "A";;
 let b = Address.addr "B";;
@@ -347,3 +378,5 @@ State.supply (Token.mintLP t0) s;;
 State.supply (Token.mintLP t1) s;;
 State.er t0 s;;
 State.er t1 s;;
+
+*)

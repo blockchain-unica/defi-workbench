@@ -8,6 +8,8 @@ let mintLP t1 = LPTok t1
 
 let isMintedLP tau = match tau with LPTok _ -> true | _ -> false
 
+let uLP tau = match tau with LPTok tau' -> Some tau' | _ -> None
+
 let rec to_string tau = match tau with
     InitTok s -> s
   | LPTok tau' -> "{" ^ to_string(tau') ^ "}"

@@ -8,6 +8,9 @@ val mintLP : t -> t
 
 val isMintedLP : t -> bool
 
+(* Underlying token of an LP-minted token *)
+val uLP : t -> t option
+
 val to_string : t -> string
 
 val compare : t -> t -> int
