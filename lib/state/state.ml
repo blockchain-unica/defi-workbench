@@ -44,6 +44,8 @@ module type StateType =
 
     val accrue_int : t -> t
 
+    val rep : Address.t -> int -> Token.t -> t -> t
+
     val liq : Address.t -> Address.t -> int -> Token.t -> Token.t -> t -> t
 
     val to_string : t -> string
@@ -72,6 +74,7 @@ module State : StateType =
     exception InsufficientBalance of string
     exception InsufficientDebt of string
     exception UnderCollateralization of string
+    exception OverCollateralization of string
 
     let empty = (WMap.empty,LPMap.empty)
 
@@ -203,13 +206,35 @@ module State : StateType =
       in (fst s, lpM')
 
     (**************************************************)
+    (*                        Rep                     *)
+    (**************************************************)
+
+    let rep a v tau s =
+      let wa = get_wallet a s in
+      if Wallet.balance tau wa < v
+      then raise (InsufficientBalance (Address.to_string a));
+      let wa' =	(wa |> Wallet.update tau (-v)) in
+      let wM' = WMap.add a (Wallet.get_balance wa') (fst s) in
+      let (r,d) = LPMap.find tau (snd s) in
+      if Lp.debt_of a d < v then raise (InsufficientDebt "Rep");
+      let d' = Lp.update_debt a (-v) d in
+      let lpM' = LPMap.add tau (r+v,d') (snd s) in
+      (wM',lpM')
+
+    (**************************************************)
+    (*                        Rdm                     *)
+    (**************************************************)
+
+
+    (**************************************************)
     (*                        Liq                     *)
     (**************************************************)
 
-    (* Address.t -> Address.t -> int -> Token.t -> Token.t -> t -> t *)
-
     let liq a b v tau tau' s = 
       if a=b then raise (SameAddress);
+      (match coll b s with
+	Val c when c < coll_min -> ()
+      | _ -> raise (OverCollateralization (Address.to_string b)));
       if (Token.isMintedLP tau') then raise (MintedLP (Token.to_string tau'));
       let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
@@ -229,7 +254,10 @@ module State : StateType =
       if Lp.debt_of b d < v then raise (InsufficientDebt (Address.to_string b));
       let d' = Lp.update_debt b (-v) d in
       let lpM' = LPMap.add tau (r+v,d') (snd s) in
-      (wM',lpM')
+      let s' = (wM',lpM') in
+      (match coll b s' with
+	Val c when c <= coll_min -> s'
+      | _ -> raise (OverCollateralization (Address.to_string b)))
 
 
     let to_string (w,lp) =
