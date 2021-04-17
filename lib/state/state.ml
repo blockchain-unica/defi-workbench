@@ -44,7 +44,7 @@ module type StateType =
 
     val accrue_int : t -> t
 
-    val liq : Address.t -> Address.t -> int -> Token.t -> Tokent.t -> t -> t
+    val liq : Address.t -> Address.t -> int -> Token.t -> Token.t -> t -> t
 
     val to_string : t -> string
 
@@ -65,9 +65,12 @@ module State : StateType =
     type collType = Infty | Val of float
 
     let coll_min = 1.5
+    let r_liq = 1.2
 
     exception SameAddress
+    exception MintedLP of string
     exception InsufficientBalance of string
+    exception InsufficientDebt of string
     exception UnderCollateralization of string
 
     let empty = (WMap.empty,LPMap.empty)
@@ -125,9 +128,9 @@ module State : StateType =
       then Val ((val_collateralized a s) /. (val_debt a s))
       else Infty
 
-	  (**************************************************)
-	  (*                        Xfer                    *)
-	  (**************************************************)
+    (**************************************************)
+    (*                        Xfer                    *)
+    (**************************************************)
 
     let xfer a b v tau (w,lp) =
       if a=b then raise (SameAddress);
@@ -146,9 +149,9 @@ module State : StateType =
       |> WMap.add b (Wallet.get_balance wb'))
       in (w',lp)
 
-	(**************************************************)
-	(*                        Dep                     *)
-	(**************************************************)
+    (**************************************************)
+    (*                        Dep                     *)
+    (**************************************************)
 
     let dep a v tau (w,lp) =
       let wa = get_wallet a (w,lp) in
@@ -168,9 +171,9 @@ module State : StateType =
 	(w',LPMap.add tau (n',d) lp)
       with Not_found ->	(w', LPMap.add tau (v,Lp.debt_of_list []) lp)
 
-	(**************************************************)
-	(*                        Bor                     *)
-	(**************************************************)
+    (**************************************************)
+    (*                        Bor                     *)
+    (**************************************************)
 
     let bor a v tau s =
       let wa = get_wallet a s in
@@ -185,9 +188,9 @@ module State : StateType =
 	Val c when c < coll_min -> raise (UnderCollateralization (Address.to_string a));
       | _ -> s'
 
-	  (**************************************************)
-	  (*                        Int                     *)
-	  (**************************************************)
+    (**************************************************)
+    (*                        Int                     *)
+    (**************************************************)
 
     let accrue_int s =
       (* intr is the interest function (Token.t -> t -> float) *)
@@ -199,30 +202,34 @@ module State : StateType =
         (snd s)
       in (fst s, lpM')
 
+    (**************************************************)
+    (*                        Liq                     *)
+    (**************************************************)
 
-	  (**************************************************)
-	  (*                        Liq                     *)
-	  (**************************************************)
-
-    (* Address.t -> Address.t -> int -> Token.t -> Tokent.t -> t -> t *)
+    (* Address.t -> Address.t -> int -> Token.t -> Token.t -> t -> t *)
 
     let liq a b v tau tau' s = 
       if a=b then raise (SameAddress);
+      if (Token.isMintedLP tau') then raise (MintedLP (Token.to_string tau'));
       let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
       if Wallet.balance tau wa < v
       then raise (InsufficientBalance (Address.to_string a));
-      let v' = v in (* TODO *)
+      let v' = int_of_float (((float_of_int v) *. r_liq *. (get_price tau s)) /. ((er tau' s) *. (get_price tau' s))) in 
       let wb = get_wallet b s in
-      if Wallet.balance tau' wb < v'
+      if Wallet.balance (Token.mintLP tau') wb < v'
       then raise (InsufficientBalance (Address.to_string b));
-      let wa' = (wa |> update tau (-v) |> update tau' v')  in
-      let wb' = (wb |> update tau v) in
+      let wa' = Wallet.(wa |> update tau (-v) |> update (Token.mintLP tau') v')  in
+      let wb' = Wallet.(wb |> update (Token.mintLP tau') (-v')) in
       let wM' =
 	(fst s
             |> WMap.add a (Wallet.get_balance wa')
-            |> WMap.add b (Wallet.get_balance wb'))
-      in (wM',snd s)
+            |> WMap.add b (Wallet.get_balance wb')) in
+      let (r,d) = LPMap.find tau (snd s) in
+      if Lp.debt_of b d < v then raise (InsufficientDebt (Address.to_string b));
+      let d' = Lp.update_debt b (-v) d in
+      let lpM' = LPMap.add tau (r+v,d') (snd s) in
+      (wM',lpM')
 
 
     let to_string (w,lp) =

@@ -9,7 +9,7 @@ let t1 = Token.init "t1"
 let s = State.(
   empty
   |> id_print
-  |> add_wallet a [(t0,100);(t1,50)]
+  |> add_wallet a [(t0,100);(t1,150)]
   |> id_print
   |> add_wallet b [(t0,200)]
   |> id_print
@@ -31,7 +31,15 @@ let s = State.(
   |> id_print
   |> bor b 40 t1
   |> id_print
+  |> bor b 30 t0
+  |> id_print
   |> accrue_int
+  |> id_print
+  |> accrue_int
+  |> id_print
+  |> accrue_int
+  |> id_print
+  |> liq a b 10 t1 t0
   |> id_print
 )
 ;;
