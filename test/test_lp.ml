@@ -1,14 +1,13 @@
 open Address
-open Token
 open Lp
 
 let a = Address.addr "A"
 let b = Address.addr "B"
-    
+
 let t0 = Token.init "t0"
 let t1 = Token.init "t1"
 let t2 = Token.mintAMM(t0,t1);;
- 
+
 let lp0 = Lp.empty t0;;
 print_endline (Lp.to_string lp0)
 
