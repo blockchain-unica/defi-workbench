@@ -45,6 +45,8 @@ let s = State.(
   |> id_print
   |> liq a b 19 t1 t0
   |> id_print
+  |> rdm a 82 t0
+  |> id_print
 )
 ;;
 

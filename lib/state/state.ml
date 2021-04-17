@@ -46,7 +46,11 @@ module type StateType =
 
     val rep : Address.t -> int -> Token.t -> t -> t
 
+    val rdm : Address.t -> int -> Token.t -> t -> t
+
     val liq : Address.t -> Address.t -> int -> Token.t -> Token.t -> t -> t
+
+    val px : Token.t -> float -> s -> s
 
     val to_string : t -> string
 
@@ -221,9 +225,25 @@ module State : StateType =
       let lpM' = LPMap.add tau (r+v,d') (snd s) in
       (wM',lpM')
 
+
     (**************************************************)
     (*                        Rdm                     *)
     (**************************************************)
+
+    let rdm a v tau s =
+      if (Token.isMintedLP tau) then raise (MintedLP (Token.to_string tau));
+      let wa = get_wallet a s in
+      if Wallet.balance (Token.mintLP tau) wa < v
+      then raise (InsufficientBalance (Address.to_string a));
+      let v' = int_of_float ((float_of_int v) *. (er tau s)) in
+      let wa' =	(wa
+                    |> Wallet.update (Token.mintLP tau) (-v) 
+                    |> Wallet.update tau v') in
+      let wM' = WMap.add a (Wallet.get_balance wa') (fst s) in
+      let (r,d) = LPMap.find tau (snd s) in
+      if r < v' then raise (InsufficientBalance "Rdm");
+      let lpM' = LPMap.add tau (r-v',d) (snd s) in
+      (wM',lpM')
 
 
     (**************************************************)
