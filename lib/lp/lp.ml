@@ -18,6 +18,8 @@ module type LpType = sig
 
   val set_debt : dt -> t -> t
 
+  val update_debt : Address.t -> int -> dt -> dt
+      
   val list_of_debt : dt -> (Address.t * int) list
       
   val debt_of_list : (Address.t * int) list -> dt
@@ -41,6 +43,12 @@ module Lp : LpType = struct
      
   let set_debt d (t,n,_) = (t,n,d)
 
+  let rec bind f x v = match f with
+    [] -> [(x,v)]
+  | (x',v')::f' -> if x'=x then (x,v + v')::f' else (x',v')::(bind f' x v)
+
+  let update_debt a v d = bind d a v
+      
   let debt_of_list l = l
 
   let list_of_debt l = l

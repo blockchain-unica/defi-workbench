@@ -25,6 +25,8 @@ module type StateType =
 
     val dep : Address.t -> int -> Token.t -> t -> t
 
+    val bor : Address.t -> int -> Token.t -> t -> t
+	
     val to_string : t -> string
 
     val id_print : t -> t
@@ -68,6 +70,10 @@ module State : StateType =
 	let dsum = List.fold_right (fun x n -> n + snd x) (Lp.list_of_debt d) 0 in
 	float_of_int (r + dsum) /. float_of_int (supply (Token.mintLP tau) s)
       with Not_found -> 1.
+
+	  (**************************************************)
+	  (*                        Xfer                    *)
+	  (**************************************************)
 	  
     let xfer a b v tau (w,lp) =
       if a=b then raise (SameAddress);
@@ -85,6 +91,10 @@ module State : StateType =
           (* adds v:tau to b's balance *)
       |> WMap.add b (Wallet.get_balance wb'))
       in (w',lp)
+
+	(**************************************************)
+	(*                        Dep                     *)
+	(**************************************************)
 	
     let dep a v tau (w,lp) =
       let wa = get_wallet a (w,lp) in
@@ -98,12 +108,31 @@ module State : StateType =
       let w' = WMap.add a (Wallet.get_balance wa') w in
       try
 	let lp0 = get_lp tau (w,lp) in
-	let v' = v in
+	let v' = int_of_float ((float_of_int v) /. (er tau (w,lp))) in 
 	let n' = v' + Lp.get_balance lp0 in
 	let d = Lp.get_debt lp0 in
 	(w',LPMap.add tau (n',d) lp)
       with Not_found ->	(w', LPMap.add tau (v,Lp.debt_of_list []) lp)
 
+
+	(**************************************************)
+	(*                        Bor                     *)
+	(**************************************************)
+	
+    let bor a v tau s =
+      let wa = get_wallet a s in
+      (* fails if a's balance of tau is < v *)
+      if false (* coll a (w,lp) < coll_min *)
+      then raise (InsufficientBalance (Address.to_string a));
+      let wa' =	(wa |> Wallet.update tau v) in 
+      let w' = WMap.add a (Wallet.get_balance wa') (fst s) in
+      let lp = get_lp tau s in
+      let r = Lp.get_balance lp in
+      if r<v then raise (InsufficientBalance (Lp.to_string lp));
+      let d' = Lp.update_debt a v (Lp.get_debt lp) in (* TODO *)
+      (w',LPMap.add tau (r-v,d') (snd s))
+
+	  
     let to_string (w,lp) =
       let ws = WMap.fold
 	  (fun a bal s -> s ^ (if s="" then "" else " | ") ^ (Wallet.to_string (Wallet.make a bal)))
@@ -138,6 +167,8 @@ let s = State.(
   |> dep a 50 t0      
   |> id_print      
   |> dep b 10 t0
+  |> id_print      
+  |> bor a 15 t0
   |> id_print      
 )
 ;;
