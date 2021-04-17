@@ -1,4 +1,3 @@
-open Token
 open Address
 open Wallet
 open Lp
@@ -92,7 +91,7 @@ module State : StateType =
 	float_of_int (r + dsum) /. float_of_int (supply (Token.mintLP tau) s)
       with Not_found -> 1.
 
-    let get_price tau s = 1.
+    let get_price _ _ = 1.
 
     let val_free a s =
       let bl = Wallet.list_of_balance (WMap.find a (fst s))
