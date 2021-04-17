@@ -1,6 +1,5 @@
-open Token
 open Address
-
+open Token
  
 module type WalletType = sig
   

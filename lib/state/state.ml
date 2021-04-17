@@ -1,19 +1,17 @@
 open Token
 open Address
 open Wallet
-open LP
+open Lp
      
 module type StateType =
   sig
-    type tw
-    type tlp
-    type t = tw * tlp
-
+    type t
+	  
     val empty : t
     
     val get_wallet : Address.t -> t -> Wallet.t
 	
-    val get_lp : Token.t -> t -> LP.t
+    val get_lp : Token.t -> t -> Lp.t
 	
     val add_wallet : Address.t -> (Token.t * int) list -> t -> t
 
@@ -30,11 +28,11 @@ module State : StateType =
  
     module WMap = Map.Make(Address)
     module LPMap = Map.Make(Token)
-	
+
     type tw = Wallet.bt WMap.t
-    type tlp = LP.t LPMap.t
+    type tlp = (int * Lp.dt) LPMap.t
     type t = tw * tlp
-	  
+
     exception SameAddress
     exception InsufficientBalance of string
 	
@@ -45,7 +43,8 @@ module State : StateType =
     let add_wallet a bal s =
       (WMap.add a (Wallet.balance_of_list bal) (fst s), snd s)
 	
-    let get_lp tau s = LPMap.find tau (snd s)
+    let get_lp tau s =
+      let (n,d) = (LPMap.find tau (snd s)) in Lp.make tau n d
 	
     let xfer a b v tau (w,lp) =
       if a=b then raise (SameAddress);
@@ -75,14 +74,16 @@ module State : StateType =
       |> Wallet.update tau' v) in 
       let w' = WMap.add a (Wallet.get_balance wa') w in
       try
-	let (_,n,debt) = get_lp tau (w,lp) in
+	let lp0 = get_lp tau (w,lp) in
 	let v' = v in
-	(w',LPMap.add tau (LP.make tau (n+v') debt) lp)
-      with Not_found -> (w', LPMap.add tau (LP.make tau v []) lp)
+	let n' = v' + Lp.get_balance lp0 in
+	let d = Lp.get_debt lp0 in
+	(w',LPMap.add tau (n',d) lp)
+      with Not_found ->	(w', LPMap.add tau (v,Lp.debt_of_list []) lp)
 
     let to_string (w,lp) =
       let ws = WMap.fold (fun a bal s -> s ^ (if s="" then "" else " | ") ^ (Wallet.to_string (Wallet.make a bal))) w "" in
-      let lps = LPMap.fold (fun t lp0 s -> s ^ (if s="" then "" else " | ") ^ (LP.to_string lp0)) lp "" in
+      let lps = LPMap.fold (fun t p s -> s ^ (if s="" then "" else " | ") ^ (Lp.to_string (Lp.make t (fst p) (snd p)))) lp "" in
       ws ^ (if lps = "" then "" else " | " ^ lps)
 	
   end
@@ -93,26 +94,23 @@ let a = Address.addr "A";;
 let b = Address.addr "B";;
 let t0 = Token.init "t0";;
 let t1 = Token.init "t1";;
+
+let print_state = fun s -> (print_endline (State.to_string s); s);;
     
-let s0 = State.(
+let s = State.(
   empty
-|> add_wallet a [(t0,100);(t1,50)]
-|> add_wallet b [(t0,200)]
+  |> print_state    
+  |> add_wallet a [(t0,100);(t1,50)]
+  |> print_state
+  |> add_wallet b [(t0,200)]
+  |> print_state
+  |> xfer a b 10 t0
+  |> print_state
+  |> xfer a b 10 t1
+  |> print_state
+  |> dep a 50 t0      
+  |> print_state      
+  |> dep b 10 t0
+  |> print_state      
 )
 ;;
-
-print_string (State.to_string s0);;
-let wa = State.get_wallet a s0;;
-Wallet.balance t0 wa;;
-
-let s1 = State.xfer a b 10 t0 s0;;
-print_string (State.to_string s1);;
-
-let s2 = State.xfer a b 10 t1 s1;;
-print_string (State.to_string s2);;
-
-let s3 = State.dep a 50 t0 s2;;
-print_string (State.to_string s3);;
-
-let s4 = State.dep b 10 t0 s3;;
-print_string (State.to_string s4);;
