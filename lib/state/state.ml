@@ -6,12 +6,16 @@ open Lp
 module type StateType =
   sig
     type t
+
+    type collType = Infty | Val of float	  
 	  
     val empty : t
     
     val get_wallet : Address.t -> t -> Wallet.t
 	
     val get_lp : Token.t -> t -> Lp.t
+
+    val get_price : Token.t -> t -> float
 	
     val add_wallet : Address.t -> (Token.t * int) list -> t -> t
 
@@ -20,7 +24,19 @@ module type StateType =
 
     (* Exchange rate ER of a non-minted token in a state *)	
     val er : Token.t -> t -> float
-	
+
+    (* Value of free (non-collateralized) tokens *)
+    val val_free : Address.t -> t -> float
+
+    (* Value of collateralized tokens *)
+    val val_collateralized : Address.t -> t -> float
+
+    (* Value of non-minted tokens *)
+    val val_debt : Address.t -> t -> float
+
+    (* Collateralization of a user in a state *)
+    val coll : Address.t -> t -> collType
+      
     val xfer : Address.t -> Address.t -> int -> Token.t -> t -> t
 
     val dep : Address.t -> int -> Token.t -> t -> t
@@ -32,6 +48,7 @@ module type StateType =
     val id_print : t -> t
 
   end
+
       
 module State : StateType =
   struct
@@ -42,9 +59,13 @@ module State : StateType =
     type tw = Wallet.bt WMap.t
     type tlp = (int * Lp.dt) LPMap.t
     type t = tw * tlp
+    type collType = Infty | Val of float
 
+    let coll_min = 1.5
+	
     exception SameAddress
     exception InsufficientBalance of string
+    exception UnderCollateralization of string
 	
     let empty = (WMap.empty,LPMap.empty)
 	
@@ -71,6 +92,23 @@ module State : StateType =
 	float_of_int (r + dsum) /. float_of_int (supply (Token.mintLP tau) s)
       with Not_found -> 1.
 
+    let get_price tau s = 1.
+
+    let val_free a s =
+      let bl = Wallet.list_of_balance (WMap.find a (fst s))
+      in List.fold_right
+	(fun x n -> n +. (float_of_int (snd x) *. get_price (fst x) s))
+	(List.filter (fun x -> Token.is_free (fst x)) bl)
+	0.
+
+    let val_collateralized a s = 0.
+    let val_debt a s = 0.
+	
+    let coll a s =
+      if val_debt a s > 0.
+      then Val ((val_collateralized a s) /. (val_debt a s))
+      else Infty
+	
 	  (**************************************************)
 	  (*                        Xfer                    *)
 	  (**************************************************)
@@ -114,7 +152,6 @@ module State : StateType =
 	(w',LPMap.add tau (n',d) lp)
       with Not_found ->	(w', LPMap.add tau (v,Lp.debt_of_list []) lp)
 
-
 	(**************************************************)
 	(*                        Bor                     *)
 	(**************************************************)
@@ -122,15 +159,16 @@ module State : StateType =
     let bor a v tau s =
       let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
-      if false (* coll a (w,lp) < coll_min *)
-      then raise (InsufficientBalance (Address.to_string a));
       let wa' =	(wa |> Wallet.update tau v) in 
       let w' = WMap.add a (Wallet.get_balance wa') (fst s) in
       let lp = get_lp tau s in
       let r = Lp.get_balance lp in
       if r<v then raise (InsufficientBalance (Lp.to_string lp));
-      let d' = Lp.update_debt a v (Lp.get_debt lp) in (* TODO *)
-      (w',LPMap.add tau (r-v,d') (snd s))
+      let d' = Lp.update_debt a v (Lp.get_debt lp) in
+      let s' = (w',LPMap.add tau (r-v,d') (snd s)) in      
+      match coll a s' with
+	Val c when c < coll_min -> raise (UnderCollateralization (Address.to_string a));
+      | _ -> s'
 
 	  
     let to_string (w,lp) =
@@ -173,6 +211,9 @@ let s = State.(
 )
 ;;
 
+State.val_free a s;;
+
+State.coll a s;;
 State.supply t0 s;;
 State.supply t1 s;;
 State.supply (Token.mintLP t0) s;;

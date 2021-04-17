@@ -8,8 +8,6 @@ module type WalletType = sig
   (* type of the users' balance *)
   type bt
 	
-  type balType = Unbound | Val of int
-
   val make : Address.t -> bt -> t
       
   val empty : Address.t -> t
@@ -25,7 +23,9 @@ module type WalletType = sig
   val set_balance : bt -> t -> t
 
   val balance_of_list : (Token.t * int) list -> bt
-      
+
+  val list_of_balance : bt -> (Token.t * int) list
+
   val to_string : t -> string
 
 end
@@ -59,6 +59,8 @@ module Wallet : WalletType = struct
 
   let get_balance w = snd w
 
+  let list_of_balance l = l
+      
   let balance_of_list l = l
       
   let set_balance bal (a,_) = (a,bal)

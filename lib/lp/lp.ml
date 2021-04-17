@@ -7,7 +7,7 @@ module type LpType = sig
   type t
   (* type of the users' debt *)
   type dt
-  
+
   val empty : Token.t -> t
 	
   val make : Token.t -> int -> dt -> t
