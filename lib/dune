@@ -13,3 +13,9 @@
  (modules wallet)
  (libraries token address)
 )
+
+(library
+ (name lp)
+ (modules lp)
+ (libraries address token)
+)

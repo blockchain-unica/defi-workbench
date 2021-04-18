@@ -1,4 +1,0 @@
-(library
-  (name lp)
-  (libraries token address)
-)

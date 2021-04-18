@@ -1,5 +1,4 @@
 open Address
-open Lp
 
 module type StateType =
   sig
