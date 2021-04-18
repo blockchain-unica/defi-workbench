@@ -79,10 +79,6 @@ module State : StateType =
     let coll_min = 1.5
     let r_liq = 1.1
 
-    exception MintedLP of string
-    exception InsufficientBalance of string
-    exception InsufficientDebt of string
-
     let empty = { wM = WMap.empty;
                   lpM = LPMap.empty;
                   pF = fun (_:Token.t) -> 0. }
@@ -178,7 +174,7 @@ module State : StateType =
       let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
       if Wallet.balance tau wa < v
-      then raise (InsufficientBalance (Address.to_string a));
+      then invalid_arg ("Xfer: " ^ (Address.to_string a) ^ "'s balance is insufficient");
       let wb = get_wallet b s in
       let wa' = Wallet.update tau (-v) wa in
       let wb' = Wallet.update tau v wb in
@@ -200,7 +196,7 @@ module State : StateType =
       let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
       if Wallet.balance tau wa < v
-      then raise (InsufficientBalance (Address.to_string a));
+      then invalid_arg ("Dep: " ^ (Address.to_string a) ^ "'s balance is insufficient");
       let tau' = Token.mintLP tau in
       let wa' =	(wa
       |> Wallet.update tau (-v)
@@ -227,7 +223,7 @@ module State : StateType =
       let wM' = WMap.add a (Wallet.get_balance wa') s.wM in
       let lp = get_lp tau s in
       let r = Lp.get_balance lp in
-      if r<v then raise (InsufficientBalance (Lp.to_string lp));
+      if r<v then invalid_arg ("Bor: " ^ (Token.to_string tau) ^ " balance in LP is insufficient");
       let d' = Lp.update_debt a v (Lp.get_debt lp) in
       let s' = { s with wM = wM'; lpM = LPMap.add tau (r-v,d') s.lpM } in
       match coll a s' with
@@ -259,11 +255,12 @@ module State : StateType =
       if v<0 then invalid_arg "Rep: trying to transfer a negative amount";
       let wa = get_wallet a s in
       if Wallet.balance tau wa < v
-      then raise (InsufficientBalance (Address.to_string a));
+      then invalid_arg ("Rep: " ^ (Address.to_string a) ^ "'s balance is insufficient");
       let wa' =	(wa |> Wallet.update tau (-v)) in
       let wM' = WMap.add a (Wallet.get_balance wa') s.wM in
       let (r,d) = LPMap.find tau s.lpM in
-      if Lp.debt_of a d < v then raise (InsufficientDebt "Rep");
+      if Lp.debt_of a d < v then 
+        invalid_arg ("Rep: " ^ (Address.to_string a) ^ "'s debt in " ^ (Token.to_string tau) ^ "LP is insufficient");
       let d' = Lp.update_debt a (-v) d in
       let lpM' = LPMap.add tau (r+v,d') s.lpM in
       { s with wM = wM'; lpM = lpM' }
@@ -275,17 +272,19 @@ module State : StateType =
 
     let rdm a v tau s =
       if v<0 then invalid_arg "Rdm: trying to transfer a negative amount";
-      if (Token.isMintedLP tau) then raise (MintedLP (Token.to_string tau));
+      if (Token.isMintedLP tau) then 
+        invalid_arg ("Rdm: token " ^ (Token.to_string tau) ^ "is minted by a LP");
       let wa = get_wallet a s in
       if Wallet.balance (Token.mintLP tau) wa < v
-      then raise (InsufficientBalance (Address.to_string a));
+      then invalid_arg ("Rdm: " ^ (Address.to_string a) ^ "'s balance is insufficient");
       let v' = int_of_float ((float_of_int v) *. (er tau s)) in
       let wa' =	(wa
                     |> Wallet.update (Token.mintLP tau) (-v) 
                     |> Wallet.update tau v') in
       let wM' = WMap.add a (Wallet.get_balance wa') s.wM in
       let (r,d) = LPMap.find tau s.lpM in
-      if r < v' then raise (InsufficientBalance "Rdm");
+      if r < v' 
+      then invalid_arg ("Rdm: " ^ (Token.to_string tau) ^ " balance in LP is insufficient");
       let lpM' = LPMap.add tau (r-v',d) s.lpM in
       { s with wM = wM'; lpM = lpM' }
 
@@ -301,15 +300,16 @@ module State : StateType =
 	Val c when c < coll_min -> ()
       | Val c -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is " ^ (string_of_float c) ^ " >= " ^ (string_of_float coll_min))
       | Infty -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is Infty >= " ^ (string_of_float coll_min)));
-      if (Token.isMintedLP tau') then raise (MintedLP (Token.to_string tau'));
+      if (Token.isMintedLP tau') then 
+                invalid_arg ("Rdm: token " ^ (Token.to_string tau') ^ "is minted by a LP");
       let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
       if Wallet.balance tau wa < v
-      then raise (InsufficientBalance (Address.to_string a));
+      then invalid_arg ("Liq: " ^ (Address.to_string a) ^ "'s balance is insufficient");
       let v' = int_of_float (((float_of_int v) *. r_liq *. (get_price tau s)) /. ((er tau' s) *. (get_price tau' s))) in
       let wb = get_wallet b s in
       if Wallet.balance (Token.mintLP tau') wb < v'
-      then raise (InsufficientBalance (Address.to_string b));
+      then invalid_arg ("Liq: " ^ (Address.to_string b) ^ "'s balance is insufficient");
       let wa' = Wallet.(wa |> update tau (-v) |> update (Token.mintLP tau') v')  in
       let wb' = Wallet.(wb |> update (Token.mintLP tau') (-v')) in
       let wM' =
@@ -317,7 +317,8 @@ module State : StateType =
             |> WMap.add a (Wallet.get_balance wa')
             |> WMap.add b (Wallet.get_balance wb')) in
       let (r,d) = LPMap.find tau s.lpM in
-      if Lp.debt_of b d < v then raise (InsufficientDebt (Address.to_string b));
+      if Lp.debt_of b d < v then 
+        invalid_arg ("Rep: " ^ (Address.to_string b) ^ "'s debt in " ^ (Token.to_string tau) ^ "LP is insufficient");
       let d' = Lp.update_debt b (-v) d in
       let lpM' = LPMap.add tau (r+v,d') s.lpM in
       let s' = { s with wM = wM'; lpM = lpM' } in
