@@ -82,8 +82,6 @@ module State : StateType =
     exception MintedLP of string
     exception InsufficientBalance of string
     exception InsufficientDebt of string
-    exception UnderCollateralization of string
-    exception OverCollateralization of string
 
     let empty = { wM = WMap.empty;
                   lpM = LPMap.empty;
@@ -233,7 +231,8 @@ module State : StateType =
       let d' = Lp.update_debt a v (Lp.get_debt lp) in
       let s' = { s with wM = wM'; lpM = LPMap.add tau (r-v,d') s.lpM } in
       match coll a s' with
-	Val c when c < coll_min -> raise (UnderCollateralization (Address.to_string a));
+	Val c when c < coll_min -> 
+          failwith ("Bor: " ^ (Address.to_string a) ^ " collateralization after action is " ^ (string_of_float c) ^ " < " ^ (string_of_float coll_min))
       | _ -> s'
 
 
@@ -300,7 +299,8 @@ module State : StateType =
       if a=b then invalid_arg "Xfer: trying to transfer to the same address";
       (match coll b s with
 	Val c when c < coll_min -> ()
-      | _ -> raise (OverCollateralization (Address.to_string b)));
+      | Val c -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is " ^ (string_of_float c) ^ " >= " ^ (string_of_float coll_min))
+      | Infty -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is Infty >= " ^ (string_of_float coll_min)));
       if (Token.isMintedLP tau') then raise (MintedLP (Token.to_string tau'));
       let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
@@ -323,11 +323,8 @@ module State : StateType =
       let s' = { s with wM = wM'; lpM = lpM' } in
       (match coll b s' with
 	Val c when c <= coll_min -> s'
-      | Val c when c > coll_min -> 
-         raise (OverCollateralization 
-                  (Address.to_string b ^ " : " ^ (string_of_float c)))
-      | _ -> raise (OverCollateralization 
-                      (Address.to_string b ^ " : Infty")))
+      | Val c -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization after action is " ^ (string_of_float c) ^ " >= " ^ (string_of_float coll_min))
+      | Infty -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization after action is Infty >= " ^ (string_of_float coll_min)))
 
 
     (**************************************************)

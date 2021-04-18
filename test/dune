@@ -11,6 +11,12 @@
 )
 
 (test
+  (name test2)
+  (modules test2)
+  (libraries address token wallet lp state)
+)
+
+(test
   (name test_token)
   (modules test_token)
   (libraries token)
