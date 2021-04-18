@@ -17,25 +17,28 @@ module type StateType =
 
     val add_wallet : Address.t -> (Token.t * int) list -> t -> t
 
-    (* Set of tokens in a state *)
+    (** [tok s] is the set of all tokens in state [s] *)
     val tok : t -> Token.t list
 
-    (* Supply of a token in a state *)
+    (** [supply tau s] is the supply of token [tau] in state [s] *)
     val supply : Token.t -> t -> int
 
-    (* Exchange rate ER of a non-minted token in a state *)
+    (** [er tau s] is the exchange rate of a non-minted token in state [s] *)
     val er : Token.t -> t -> float
 
-    (* Value of free (non-collateralized) tokens *)
+    (** value of free (non-collateralized) tokens *)
     val val_free : Address.t -> t -> float
 
-    (* Value of collateralized tokens *)
+    (** value of collateralized tokens *)
     val val_collateralized : Address.t -> t -> float
 
-    (* Value of non-minted tokens *)
+    (** value of non-minted tokens *)
     val val_debt : Address.t -> t -> float
 
-    (* Collateralization of a user in a state *)
+    (** [networth a s] is the net worth of address [a] in state [s] *)
+    val networth : Address.t -> t -> float
+
+    (** collateralization of a user in a state *)
     val coll : Address.t -> t -> collType
 
     val xfer : Address.t -> Address.t -> int -> Token.t -> t -> t
@@ -141,6 +144,9 @@ module State : StateType =
           (get_price t s))
       s.lpM
       0.
+
+    let networth a s = 
+      (val_free a s +. val_collateralized a s) -. (val_debt a s)
 
     let coll a s =
       if val_debt a s > 0.
