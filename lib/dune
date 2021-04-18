@@ -19,3 +19,9 @@
  (modules lp)
  (libraries address token)
 )
+
+(library
+ (name state)
+ (modules state)
+ (libraries wallet token address lp)
+)
