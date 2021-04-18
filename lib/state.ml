@@ -96,6 +96,8 @@ let tok s =
 
 let tokFree s = List.filter (fun x -> not (Token.isMintedLP x)) (tok s)
 
+let addr s = set_of_list (WMap.fold (fun a _ acc -> a::acc) s.wM [])
+
 
     (**************************************************)
     (*                        Xfer                    *)
@@ -282,3 +284,12 @@ let to_string s =
   ws ^ (if lps = "" then "" else " | " ^ lps) ^ " | " ^ ps
 
 let id_print s = print_endline (to_string s); s
+
+let id_info s = 
+  (List.iter 
+    (fun x -> 
+      print_string ( (Address.to_string x) ^ " net worth: ");
+      print_endline (string_of_float (networth x s));
+      print_string ( (Address.to_string x) ^ " collateralization: ");
+      print_endline (match coll x s with Val v -> (string_of_float v) | _ -> "Infty"))
+    (addr s)); s
