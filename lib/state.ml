@@ -1,5 +1,3 @@
-open Address
-
 module WMap = Map.Make(Address)
 module LPMap = Map.Make(Token)
 

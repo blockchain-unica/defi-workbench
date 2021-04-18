@@ -1,5 +1,3 @@
-open Address
-
 type t
 
 type collType = Infty | Val of float

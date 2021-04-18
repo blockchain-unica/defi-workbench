@@ -1,6 +1,3 @@
-open Address
-open Token
-
 let a = Address.addr "a"
 
 let t0 = init "t0"

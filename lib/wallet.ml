@@ -1,5 +1,3 @@
-open Address
-
 type bt = (Token.t * int) list
 type t = Address.t * bt
 

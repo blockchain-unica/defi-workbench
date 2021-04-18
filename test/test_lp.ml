@@ -1,6 +1,3 @@
-open Address
-open Lp
-
 let a = Address.addr "A"
 let b = Address.addr "B"
 

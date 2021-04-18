@@ -1,6 +1,3 @@
-open Address
-open State
- 
 let a = Address.addr "A"
 let b = Address.addr "B"
 let t0 = Token.init "t0"

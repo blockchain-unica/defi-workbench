@@ -1,5 +1,3 @@
-open Address
-
 (* type of the wallet *)
 type t
 
