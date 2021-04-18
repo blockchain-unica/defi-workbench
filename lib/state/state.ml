@@ -76,7 +76,6 @@ module State : StateType =
     let coll_min = 1.5
     let r_liq = 1.1
 
-    exception SameAddress
     exception MintedLP of string
     exception InsufficientBalance of string
     exception InsufficientDebt of string
@@ -170,7 +169,8 @@ module State : StateType =
     (**************************************************)
 
     let xfer a b v tau s =
-      if a=b then raise (SameAddress);
+      if v<0 then invalid_arg "Xfer: trying to transfer a negative amount";
+      if a=b then invalid_arg "Xfer: trying to transfer to the same address";
       let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
       if Wallet.balance tau wa < v
@@ -192,6 +192,7 @@ module State : StateType =
     (**************************************************)
 
     let dep a v tau s =
+      if v<0 then invalid_arg "Dep: trying to transfer a negative amount";
       let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
       if Wallet.balance tau wa < v
@@ -216,6 +217,7 @@ module State : StateType =
     (**************************************************)
 
     let bor a v tau s =
+      if v<0 then invalid_arg "Bor: trying to transfer a negative amount";
       let wa = get_wallet a s in
       let wa' =	(wa |> Wallet.update tau v) in
       let wM' = WMap.add a (Wallet.get_balance wa') s.wM in
@@ -249,6 +251,7 @@ module State : StateType =
     (**************************************************)
 
     let rep a v tau s =
+      if v<0 then invalid_arg "Rep: trying to transfer a negative amount";
       let wa = get_wallet a s in
       if Wallet.balance tau wa < v
       then raise (InsufficientBalance (Address.to_string a));
@@ -266,6 +269,7 @@ module State : StateType =
     (**************************************************)
 
     let rdm a v tau s =
+      if v<0 then invalid_arg "Rdm: trying to transfer a negative amount";
       if (Token.isMintedLP tau) then raise (MintedLP (Token.to_string tau));
       let wa = get_wallet a s in
       if Wallet.balance (Token.mintLP tau) wa < v
@@ -286,7 +290,8 @@ module State : StateType =
     (**************************************************)
 
     let liq a b v tau tau' s =
-      if a=b then raise (SameAddress);
+      if v<0 then invalid_arg "Liq: trying to transfer a negative amount";
+      if a=b then invalid_arg "Xfer: trying to transfer to the same address";
       (match coll b s with
 	Val c when c < coll_min -> ()
       | _ -> raise (OverCollateralization (Address.to_string b)));
@@ -324,6 +329,7 @@ module State : StateType =
     (**************************************************)
 
     let px tau v s =
+      if v<=0. then invalid_arg "Px: trying to set a negative price";
       { s with pF = (fun x -> if x=tau then v else s.pF x) }
 
 
@@ -334,8 +340,8 @@ module State : StateType =
       let lps = LPMap.fold
 	  (fun t p s -> s ^ (if s="" then "" else " | ") ^ (Lp.to_string (Lp.make t (fst p) (snd p))))
 	  s.lpM "" in
-      let ps = List.fold_right
-        (fun x acc -> (Token.to_string x) ^ "->" ^ (string_of_float (s.pF x)) ^ "," ^ acc) (tokFree s) "" in
+      let ps = "{" ^ List.fold_right
+        (fun x acc -> (Token.to_string x) ^ "->" ^ (string_of_float (s.pF x)) ^ "," ^ acc) (tokFree s) "_->0}" in
       ws ^ (if lps = "" then "" else " | " ^ lps) ^ " | " ^ ps
 
     let id_print s = print_endline (to_string s); s
