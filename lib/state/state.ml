@@ -1,5 +1,4 @@
 open Address
-open Wallet
 open Lp
 
 module type StateType =

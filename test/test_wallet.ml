@@ -1,6 +1,5 @@
 open Address
 open Token
-open Wallet
 
 let a = Address.addr "a"
 

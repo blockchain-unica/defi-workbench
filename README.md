@@ -12,7 +12,7 @@ $ dune build test.exe
 
 To run a test:
 ```sh
-$ _build/default/test/test.exe
+$ dune exec test/test.exe
 ```
 
 References
