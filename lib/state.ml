@@ -19,8 +19,10 @@ let get_wallet a s = Wallet.make a (WMap.find a s.wM)
 let add_wallet a bal s =
   { s with wM = WMap.add a (Wallet.balance_of_list bal) s.wM }
 
+
 let get_lp tau s =
   let (n,d) = (LPMap.find tau s.lpM) in Lp.make tau n d
+
 
 let supply tau s =
   let nw = WMap.fold
@@ -28,6 +30,7 @@ let supply tau s =
   try
     let (r,_) = LPMap.find tau s.lpM in nw + r
   with Not_found -> nw
+
 
 let er tau s =
       (* TODO: check that tau is non-minted *)
@@ -39,18 +42,21 @@ let er tau s =
 
 let get_price tau s = s.pF tau
 
+
 let val_free a s =
   let bl = Wallet.list_of_balance (WMap.find a s.wM)
   in List.fold_right
   (fun x n -> n +. (float_of_int (snd x) *. get_price (fst x) s))
   (List.filter (fun x -> not (Token.isMintedLP (fst x))) bl)
   0.
+
   
 let rec filter_map f l = match l with
     [] -> []
   | x::l' -> (match f x with 
     None -> filter_map f l'
     | Some y -> y::(filter_map f l'))
+
      
 let val_collateralized a s =
   let bl = Wallet.list_of_balance (WMap.find a s.wM)
@@ -61,6 +67,7 @@ let val_collateralized a s =
   | Some tau' -> Some (tau',v)) bl)
   0.
 
+
 let val_debt a s =
   LPMap.fold
     (fun t p acc ->
@@ -70,13 +77,16 @@ let val_debt a s =
     s.lpM
     0.
 
+
 let networth a s = 
   (val_free a s +. val_collateralized a s) -. (val_debt a s)
+
 
 let coll a s =
   if val_debt a s > 0.
   then Val ((val_collateralized a s) /. (val_debt a s))
   else Infty
+
 
 let rec set_of_list l = match l with
     [] -> []
@@ -97,9 +107,9 @@ let tokFree s = List.filter (fun x -> not (Token.isMintedLP x)) (tok s)
 let addr s = set_of_list (WMap.fold (fun a _ acc -> a::acc) s.wM [])
 
 
-    (**************************************************)
-    (*                        Xfer                    *)
-    (**************************************************)
+(**************************************************)
+(*                        Xfer                    *)
+(**************************************************)
 
 let xfer a b v tau s =
   if v<0 then invalid_arg "Xfer: trying to transfer a negative amount";
@@ -120,14 +130,14 @@ let xfer a b v tau s =
   in { s with wM = wM' }
 
 
-    (**************************************************)
-    (*                        Dep                     *)
-    (**************************************************)
+(**************************************************)
+(*                        Dep                     *)
+(**************************************************)
 
 let dep a v tau s =
   if v<0 then invalid_arg "Dep: trying to transfer a negative amount";
+  if Token.isMintedLP tau then invalid_arg "Dep: trying to deposit an LP-minted token";
   let wa = get_wallet a s in
-      (* fails if a's balance of tau is < v *)
   if Wallet.balance tau wa < v
   then invalid_arg ("Dep: " ^ (Address.to_string a) ^ "'s balance is insufficient");
   let tau' = Token.mintLP tau in
@@ -145,12 +155,13 @@ let dep a v tau s =
     { s with wM = wM'; lpM = LPMap.add tau (v,Lp.debt_of_list []) s.lpM }
 
 
-    (**************************************************)
-    (*                        Bor                     *)
-    (**************************************************)
+(**************************************************)
+(*                        Bor                     *)
+(**************************************************)
 
 let bor a v tau s =
   if v<0 then invalid_arg "Bor: trying to transfer a negative amount";
+  if Token.isMintedLP tau then invalid_arg "Bor: trying to borrow an LP-minted token";
   let wa = get_wallet a s in
   let wa' =	(wa |> Wallet.update tau v) in
   let wM' = WMap.add a (Wallet.get_balance wa') s.wM in
@@ -165,9 +176,9 @@ let bor a v tau s =
   | _ -> s'
 
 
-    (**************************************************)
-    (*                        Int                     *)
-    (**************************************************)
+(**************************************************)
+(*                        Int                     *)
+(**************************************************)
 
 let accrue_int s =
       (* intr is the interest function (Token.t -> t -> float) *)
@@ -180,12 +191,13 @@ let accrue_int s =
   in { s with lpM = lpM' }
 
 
-    (**************************************************)
-    (*                        Rep                     *)
-    (**************************************************)
+(**************************************************)
+(*                        Rep                     *)
+(**************************************************)
 
 let rep a v tau s =
   if v<0 then invalid_arg "Rep: trying to transfer a negative amount";
+  if Token.isMintedLP tau then invalid_arg "Rep: trying to repay an LP-minted token";
   let wa = get_wallet a s in
   if Wallet.balance tau wa < v
   then invalid_arg ("Rep: " ^ (Address.to_string a) ^ "'s balance is insufficient");
@@ -199,9 +211,9 @@ let rep a v tau s =
   { s with wM = wM'; lpM = lpM' }
 
 
-    (**************************************************)
-    (*                        Rdm                     *)
-    (**************************************************)
+(**************************************************)
+(*                        Rdm                     *)
+(**************************************************)
 
 let rdm a v tau s =
   if v<0 then invalid_arg "Rdm: trying to transfer a negative amount";
@@ -222,19 +234,20 @@ let rdm a v tau s =
   { s with wM = wM'; lpM = lpM' }
 
 
-    (**************************************************)
-    (*                        Liq                     *)
-    (**************************************************)
+(**************************************************)
+(*                        Liq                     *)
+(**************************************************)
 
 let liq a b v tau tau' s =
   if v<0 then invalid_arg "Liq: trying to transfer a negative amount";
   if a=b then invalid_arg "Xfer: trying to transfer to the same address";
+  if Token.isMintedLP tau then invalid_arg "Liq: trying to liquidate an LP-minted token";
+  if (Token.isMintedLP tau') then 
+    invalid_arg ("Liq: token " ^ (Token.to_string tau') ^ "is minted by a LP");
   (match coll b s with
     Val c when c < coll_min -> ()
   | Val c -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is " ^ (string_of_float c) ^ " >= " ^ (string_of_float coll_min))
   | Infty -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is Infty >= " ^ (string_of_float coll_min)));
-  if (Token.isMintedLP tau') then 
-    invalid_arg ("Rdm: token " ^ (Token.to_string tau') ^ "is minted by a LP");
   let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
   if Wallet.balance tau wa < v
@@ -261,13 +274,14 @@ let liq a b v tau tau' s =
   | Infty -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization after action is Infty >= " ^ (string_of_float coll_min)))
 
 
-    (**************************************************)
-    (*                        Px                      *)
-    (**************************************************)
+(**************************************************)
+(*                        Px                      *)
+(**************************************************)
 
 let px tau v s =
   if v<=0. then invalid_arg "Px: trying to set a negative price";
   { s with pF = (fun x -> if x=tau then v else s.pF x) }
+
 
 
 let to_string s =

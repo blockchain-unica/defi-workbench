@@ -28,22 +28,16 @@ let s = State.(
   |> id_print
   |> rdm a 10 t0
   |> id_print
+  |> id_info
  )
 ;;
 
-print_string ( (Address.to_string a) ^ " collateralization: ");
-print_endline (match State.coll a s with Val v -> (string_of_float v) | _ -> "Infty");;
-print_string ( (Address.to_string b) ^ " collateralization: ");
-print_endline (match State.coll b s with Val v -> (string_of_float v) | _ -> "Infty");;
 
-print_string ( (Address.to_string a) ^ " net worth: ");
-print_endline (string_of_float (State.networth a s));;
-print_string ( (Address.to_string b) ^ " net worth: ");
-print_endline (string_of_float (State.networth b s));;
-
+(*
 print_string "A's value of collateralized tokens: ";
 print_float (State.val_collateralized a s);;
 print_newline ();;
 print_string "B's value of collateralized tokens: ";
 print_float (State.val_collateralized b s);;
 print_newline ();;
+*)
