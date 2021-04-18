@@ -7,7 +7,7 @@ Usage
 
 To build a test:
 ```sh
-$ dune build test.exe
+$ dune build test/test.exe
 ```
 
 To run a test:

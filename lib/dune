@@ -7,3 +7,9 @@
  (name token)
  (modules token)
 )
+
+(library
+ (name wallet)
+ (modules wallet)
+ (libraries token address)
+)
