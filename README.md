@@ -1,6 +1,6 @@
-# DeFi archetypes in OCaml
+# DeFi Workbench
 
-This project implements Decentralized Finance (DeFi) archetypes in OCaml.
+This project implements a Decentralized Finance (DeFi) library in OCaml, and experiments to explore the behaviour of DeFi ecosystems.
 
 Usage
 -----
