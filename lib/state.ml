@@ -14,33 +14,38 @@ let empty = { wM = WMap.empty;
               lpM = LPMap.empty;
               pF = fun (_:Token.t) -> 0. }
 
-let get_wallet a s = Wallet.make a (WMap.find a s.wM)
 
-let add_wallet a bal s =
-  { s with wM = WMap.add a (Wallet.balance_of_list bal) s.wM }
+let get_wallet a s = Wallet.make a (WMap.find a s.wM)
 
 
 let get_lp tau s =
   let (n,d) = (LPMap.find tau s.lpM) in Lp.make tau n d
 
 
+let get_price tau s = s.pF tau
+
+
+let add_wallet a bal s =
+  if WMap.mem a s.wM then failwith ("[add_wallet]: wallet of " ^ (Address.to_string a) ^ " already present");
+  { s with wM = WMap.add a (Wallet.balance_of_list bal) s.wM }
+
+
 let supply tau s =
   let nw = WMap.fold
-    (fun a bal n -> n + Wallet.balance tau (Wallet.make a bal)) s.wM 0 in
+    (fun a bal acc -> acc + Wallet.balance tau (Wallet.make a bal)) s.wM 0 in
   try
-    let (r,_) = LPMap.find tau s.lpM in nw + r
+    nw + fst (LPMap.find tau s.lpM)
   with Not_found -> nw
 
 
 let er tau s =
-      (* TODO: check that tau is non-minted *)
+  if Token.isMintedLP tau then 
+    invalid_arg ((Token.to_string tau) ^ " is minted by an LP");
   try
     let (r,d) = LPMap.find tau s.lpM in
     let dsum = List.fold_right (fun x n -> n + snd x) (Lp.list_of_debt d) 0 in
     float_of_int (r + dsum) /. float_of_int (supply (Token.mintLP tau) s)
   with Not_found -> 1.
-
-let get_price tau s = s.pF tau
 
 
 let val_free a s =
