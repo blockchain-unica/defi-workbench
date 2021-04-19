@@ -1,3 +1,105 @@
+module type StateSig = sig
+
+type t
+
+type collType = Infty | Val of float
+
+val empty : t
+
+(** [get_wallet a s] is the wallet of address [a] in state [s] 
+    Raises: [Not_found] if the wallet is not present *)
+val get_wallet : Address.t -> t -> Wallet.t
+
+(** [get_lp t s] is the LP of token [t] in state [s] 
+    Raises: [Not_found] if the LP is not present *)
+val get_lp : Token.t -> t -> Lp.t
+
+(** [get_price t s] is the price of the token [t] in [s].
+    The price of all tokens is set to 0. in the initial state *)
+val get_price : Token.t -> t -> float
+
+
+(** [add_wallet a bal s] is the state [s] composed with the wallet [(a,bal)].
+    Raises: [Failure] if a wallet of [a] is already present in [s] *)
+val add_wallet : Address.t -> (Token.t * int) list -> t -> t
+
+(** [tok s] is the set of all tokens in state [s] *)
+val tok : t -> Token.t list
+
+(** [addr s] is the set of all addresses in state [s] *)
+val addr : t -> Address.t list
+
+
+(** [supply tau s] is the supply of token [tau] in state [s].
+    The supply is 0 if the token does not occur in [s] *)
+val supply : Token.t -> t -> int
+
+(** [er tau s] is the exchange rate of a non-minted token in state [s]. 
+    Raises: [invalid_arg] is [tau] is minted by a LP *)
+val er : Token.t -> t -> float
+
+(** value of free (non-collateralized) tokens *)
+val val_free : Address.t -> t -> float
+
+(** value of collateralized tokens *)
+val val_collateralized : Address.t -> t -> float
+
+(** value of non-minted tokens *)
+val val_debt : Address.t -> t -> float
+
+(** [networth a s] is the net worth of address [a] in state [s] *)
+val networth : Address.t -> t -> float
+
+(** collateralization of a user in a state *)
+val coll : Address.t -> t -> collType
+
+
+(**************************************************)
+(*              Lending pool actions              *)
+(**************************************************)
+
+val xfer : Address.t -> Address.t -> int -> Token.t -> t -> t
+
+val dep : Address.t -> int -> Token.t -> t -> t
+
+val bor : Address.t -> int -> Token.t -> t -> t
+
+val accrue_int : t -> t
+
+val rep : Address.t -> int -> Token.t -> t -> t
+
+val rdm : Address.t -> int -> Token.t -> t -> t
+
+val liq : Address.t -> Address.t -> int -> Token.t -> Token.t -> t -> t
+
+val px : Token.t -> float -> t -> t
+
+
+
+(**************************************************)
+(*                 Pretty-printing                *)
+(**************************************************)
+ 
+val to_string : t -> string
+
+val id_print : t -> t
+
+val id_info : t -> t
+
+
+end
+
+
+
+module type Params = sig
+    val coll_min : float
+    val r_liq : float
+    val intr : Token.t -> float
+end
+
+
+module State(P:Params):StateSig = struct
+
 module WMap = Map.Make(Address)
 module LPMap = Map.Make(Token)
 
@@ -7,8 +109,6 @@ type t = { wM : Wallet.bt WMap.t;
 
 type collType = Infty | Val of float
 
-let coll_min = 1.5
-let r_liq = 1.1
 
 let empty = { wM = WMap.empty;
               lpM = LPMap.empty;
@@ -176,8 +276,8 @@ let bor a v tau s =
   let d' = Lp.update_debt a v (Lp.get_debt lp) in
   let s' = { s with wM = wM'; lpM = LPMap.add tau (r-v,d') s.lpM } in
   match coll a s' with
-    Val c when c < coll_min -> 
-      failwith ("Bor: " ^ (Address.to_string a) ^ " collateralization after action is " ^ (string_of_float c) ^ " < " ^ (string_of_float coll_min))
+    Val c when c < P.coll_min -> 
+      failwith ("Bor: " ^ (Address.to_string a) ^ " collateralization after action is " ^ (string_of_float c) ^ " < " ^ (string_of_float P.coll_min))
   | _ -> s'
 
 
@@ -186,11 +286,10 @@ let bor a v tau s =
 (**************************************************)
 
 let accrue_int s =
-      (* intr is the interest function (Token.t -> t -> float) *)
-  let intr _ _ = 0.14 in
+      (* TODO: intr should have type (Token.t -> t -> float) *)
   let lpM' = LPMap.mapi
     (fun tau p ->
-      let d' = Lp.accrue_int (1. +. (intr tau s)) (snd p)
+      let d' = Lp.accrue_int (1. +. (P.intr tau)) (snd p)
       in (fst p, d'))
     s.lpM
   in { s with lpM = lpM' }
@@ -250,14 +349,14 @@ let liq a b v tau tau' s =
   if (Token.isMintedLP tau') then 
     invalid_arg ("Liq: token " ^ (Token.to_string tau') ^ "is minted by a LP");
   (match coll b s with
-    Val c when c < coll_min -> ()
-  | Val c -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is " ^ (string_of_float c) ^ " >= " ^ (string_of_float coll_min))
-  | Infty -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is Infty >= " ^ (string_of_float coll_min)));
+    Val c when c < P.coll_min -> ()
+  | Val c -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is " ^ (string_of_float c) ^ " >= " ^ (string_of_float P.coll_min))
+  | Infty -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization before action is Infty >= " ^ (string_of_float P.coll_min)));
   let wa = get_wallet a s in
       (* fails if a's balance of tau is < v *)
   if Wallet.balance tau wa < v
   then invalid_arg ("Liq: " ^ (Address.to_string a) ^ "'s balance is insufficient");
-  let v' = int_of_float (((float_of_int v) *. r_liq *. (get_price tau s)) /. ((er tau' s) *. (get_price tau' s))) in
+  let v' = int_of_float (((float_of_int v) *. P.r_liq *. (get_price tau s)) /. ((er tau' s) *. (get_price tau' s))) in
   let wb = get_wallet b s in
   if Wallet.balance (Token.mintLP tau') wb < v'
   then invalid_arg ("Liq: " ^ (Address.to_string b) ^ "'s balance is insufficient");
@@ -274,9 +373,9 @@ let liq a b v tau tau' s =
   let lpM' = LPMap.add tau (r+v,d') s.lpM in
   let s' = { s with wM = wM'; lpM = lpM' } in
   (match coll b s' with
-    Val c when c <= coll_min -> s'
-  | Val c -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization after action is " ^ (string_of_float c) ^ " >= " ^ (string_of_float coll_min))
-  | Infty -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization after action is Infty >= " ^ (string_of_float coll_min)))
+    Val c when c <= P.coll_min -> s'
+  | Val c -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization after action is " ^ (string_of_float c) ^ " >= " ^ (string_of_float P.coll_min))
+  | Infty -> failwith ("Liq: " ^ (Address.to_string b) ^ " collateralization after action is Infty >= " ^ (string_of_float P.coll_min)))
 
 
 (**************************************************)
@@ -309,4 +408,8 @@ let id_info s =
       print_endline (string_of_float (networth x s));
       print_string ( (Address.to_string x) ^ " collateralization: ");
       print_endline (match coll x s with Val v -> (string_of_float v) | _ -> "Infty"))
-    (addr s)); s
+    (addr s)); 
+  print_endline ("Cmin : " ^ (string_of_float P.coll_min)); s
+
+
+end

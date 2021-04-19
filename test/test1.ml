@@ -1,9 +1,18 @@
+open State
+
 let a = Address.addr "A"
 let b = Address.addr "B"
 let t0 = Token.init "t0"
 let t1 = Token.init "t1"
 
-let s = State.(
+module S = State(
+  struct
+    let coll_min = 1.5
+    let r_liq = 1.1
+    let intr _ = 0.14
+  end)
+
+let s = S.(
   empty
   |> px t0 1.
   |> px t1 1.
